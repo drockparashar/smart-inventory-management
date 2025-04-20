@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,18 +15,32 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { AlertCircle, ArrowUpDown, Edit, MoreHorizontal, Plus, Search, Trash } from "lucide-react"
-import { type Product, products as initialProducts } from "@/data/products"
+import { type Product } from "@/types/product"
 import { suppliers } from "@/data/suppliers"
 import ProductEditDialog from "@/components/product-edit-dialog"
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [products, setProducts] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [sortField, setSortField] = useState<keyof Product>("name")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
 
-  // Filter products based on search query
+  // Fetch products from backend
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/products")
+        const data = await res.json()
+        setProducts(data)
+      } catch (error) {
+        console.error("Failed to fetch products:", error)
+      }
+    }
+
+    fetchProducts()
+  }, [])
+
   const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -34,7 +48,6 @@ export default function ProductsPage() {
       product.category.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  // Sort products
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortDirection === "asc") {
       return a[sortField] > b[sortField] ? 1 : -1
@@ -43,7 +56,6 @@ export default function ProductsPage() {
     }
   })
 
-  // Handle sorting
   const handleSort = (field: keyof Product) => {
     if (field === sortField) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
@@ -53,15 +65,32 @@ export default function ProductsPage() {
     }
   }
 
-  // Handle product update
-  const handleUpdateProduct = (updatedProduct: Product) => {
-    setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)))
-    setEditingProduct(null)
+  const handleUpdateProduct = async (updatedProduct: Product) => {
+    try {
+      const res = await fetch(`/api/products/${updatedProduct.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedProduct),
+      })
+
+      if (!res.ok) throw new Error("Failed to update product")
+
+      setProducts((prev) => prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)))
+      setEditingProduct(null)
+    } catch (error) {
+      console.error("Error updating product:", error)
+    }
   }
 
-  // Handle product delete
-  const handleDeleteProduct = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id))
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete product")
+
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+    } catch (error) {
+      console.error("Error deleting product:", error)
+    }
   }
 
   return (
@@ -96,56 +125,18 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("name")}
-                    className="flex items-center gap-1 p-0 font-medium"
-                  >
-                    Product Name
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("sku")}
-                    className="flex items-center gap-1 p-0 font-medium"
-                  >
-                    SKU
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("category")}
-                    className="flex items-center gap-1 p-0 font-medium"
-                  >
-                    Category
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("stockLevel")}
-                    className="flex items-center gap-1 p-0 font-medium"
-                  >
-                    Stock
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    onClick={() => handleSort("reorderPoint")}
-                    className="flex items-center gap-1 p-0 font-medium"
-                  >
-                    Reorder Point
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </TableHead>
+                {["name", "sku", "category", "stockLevel", "reorderPoint"].map((field) => (
+                  <TableHead key={field}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => handleSort(field as keyof Product)}
+                      className="flex items-center gap-1 p-0 font-medium"
+                    >
+                      {field.charAt(0).toUpperCase() + field.slice(1)}
+                      <ArrowUpDown className="h-4 w-4" />
+                    </Button>
+                  </TableHead>
+                ))}
                 <TableHead>Supplier</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>

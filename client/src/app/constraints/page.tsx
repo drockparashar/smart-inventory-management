@@ -1,19 +1,34 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
-import { type Constraints, constraints as initialConstraints } from "@/data/constraints"
 import { Check, Info, Save } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { type Constraints } from "@/types/constraints"
 
 export default function ConstraintsPage() {
-  const [constraints, setConstraints] = useState<Constraints>({ ...initialConstraints })
+  const [constraints, setConstraints] = useState<Constraints>({
+    warehouseCapacity: 0,
+    defaultReorderQty: 0,
+    safetyStockPercentage: 0,
+  })
   const [isSaved, setIsSaved] = useState(false)
+
+  useEffect(() => {
+    const fetchConstraints = async () => {
+      const res = await fetch("http://localhost:5000/api/constraints")
+      const data = await res.json()
+      setConstraints(data)
+    }
+    fetchConstraints()
+  }, [])
 
   const handleChange = (field: keyof Constraints, value: any) => {
     setConstraints({
@@ -30,16 +45,16 @@ export default function ConstraintsPage() {
     }
   }
 
-  const handleSave = () => {
-    // In a real app, this would call an API endpoint
-    // PUT /api/constraints with the constraints object
-    console.log("Saving constraints:", constraints)
-    setIsSaved(true)
-
-    // Reset the saved status after 3 seconds
-    setTimeout(() => {
-      setIsSaved(false)
-    }, 3000)
+  const handleSave = async () => {
+    const res = await fetch("http://localhost:5000/api/constraints", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(constraints),
+    })
+    if (res.ok) {
+      setIsSaved(true)
+      setTimeout(() => setIsSaved(false), 3000)
+    }
   }
 
   return (
@@ -72,18 +87,6 @@ export default function ConstraintsPage() {
                 value={constraints.warehouseCapacity}
                 onChange={(e) => handleNumberChange("warehouseCapacity", e.target.value)}
               />
-              <p className="text-sm text-muted-foreground">Maximum number of items your warehouse can store</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="minStockLevel">Minimum Stock Level</Label>
-              <Input
-                id="minStockLevel"
-                type="number"
-                value={constraints.minStockLevel}
-                onChange={(e) => handleNumberChange("minStockLevel", e.target.value)}
-              />
-              <p className="text-sm text-muted-foreground">Absolute minimum stock level for any product</p>
             </div>
           </CardContent>
         </Card>
@@ -102,20 +105,6 @@ export default function ConstraintsPage() {
                 value={constraints.defaultReorderQty}
                 onChange={(e) => handleNumberChange("defaultReorderQty", e.target.value)}
               />
-              <p className="text-sm text-muted-foreground">
-                Default quantity to order when a product reaches its reorder point
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="maxLeadTimeDays">Maximum Lead Time (days)</Label>
-              <Input
-                id="maxLeadTimeDays"
-                type="number"
-                value={constraints.maxLeadTimeDays}
-                onChange={(e) => handleNumberChange("maxLeadTimeDays", e.target.value)}
-              />
-              <p className="text-sm text-muted-foreground">Maximum acceptable lead time for suppliers</p>
             </div>
 
             <div className="space-y-2">
@@ -126,21 +115,11 @@ export default function ConstraintsPage() {
               <Slider
                 id="safetyStockPercentage"
                 min={0}
-                max={0.5}
-                step={0.01}
+                max={100}
+                step={100}
                 value={[constraints.safetyStockPercentage]}
                 onValueChange={(value) => handleChange("safetyStockPercentage", value[0])}
               />
-              <p className="text-sm text-muted-foreground">Additional buffer stock as a percentage of reorder point</p>
-            </div>
-
-            <div className="flex items-center space-x-2 pt-2">
-              <Switch
-                id="autoReorderEnabled"
-                checked={constraints.autoReorderEnabled}
-                onCheckedChange={(checked) => handleChange("autoReorderEnabled", checked)}
-              />
-              <Label htmlFor="autoReorderEnabled">Enable Automatic Reordering</Label>
             </div>
           </CardContent>
         </Card>
@@ -150,8 +129,7 @@ export default function ConstraintsPage() {
         <Info className="h-4 w-4" />
         <AlertTitle>About Constraints</AlertTitle>
         <AlertDescription>
-          These settings affect how the system manages inventory and determines when to reorder products. Changes will
-          take effect immediately for all future calculations.
+          These settings affect how the system manages inventory and determines when to reorder products.
         </AlertDescription>
       </Alert>
 

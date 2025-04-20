@@ -1,107 +1,129 @@
 "use client"
-
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState } from "react"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, ArrowDown, ArrowUp, Check, Loader2, MinusCircle, PlusCircle, Save, Search } from "lucide-react"
-import { type Product, products as initialProducts } from "@/data/products"
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Loader2,
+  MinusCircle,
+  PlusCircle,
+  Save,
+  Search,
+} from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { PieChart, Pie, Cell, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 
-export default function ManualAdjustmentPage() {
-  const [products, setProducts] = useState<Product[]>(initialProducts)
+export type Product = {
+  _id: string
+  name: string
+  sku: string
+  category: string
+  stockLevel: number
+  reorderPoint: number
+}
+
+type CategoryData = {
+  name: string
+  value: number
+}
+
+type StockHistoryData = {
+  date: string
+  adjustment: number
+}
+
+export default function DashboardPage() {
+  const [products, setProducts] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [adjustments, setAdjustments] = useState<Record<string, number>>({})
-  const [isSaving, setIsSaving] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
 
-  // Filter products based on search query
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase()),
+  useEffect(() => {
+    fetch("http://localhost:5000/api/products")
+      .then((res) => res.json())
+      .then((data) => setProducts(data))
+      .catch((err) => console.error("Failed to fetch products", err))
+  }, [])
+
+  const filteredProducts = products.filter((product) =>
+    [product.name, product.sku, product.category]
+      .some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
-  // Handle stock adjustment
-  const handleAdjustment = (productId: string, amount: number) => {
-    const currentAdjustment = adjustments[productId] || 0
-    const newAdjustment = currentAdjustment + amount
-
-    // Find the product to check if the adjustment would result in negative stock
-    const product = products.find((p) => p.id === productId)
-    if (product && product.stockLevel + newAdjustment < 0) {
-      // Don't allow negative stock
-      return
+  // Graph Data for Pie Chart (Stock Levels by Category)
+  const categoryData: CategoryData[] = products.reduce((acc, product) => {
+    const existingCategory = acc.find((cat) => cat.name === product.category)
+    if (existingCategory) {
+      existingCategory.value += product.stockLevel
+    } else {
+      acc.push({ name: product.category, value: product.stockLevel })
     }
+    return acc
+  }, [] as CategoryData[])
 
-    setAdjustments({
-      ...adjustments,
-      [productId]: newAdjustment,
-    })
-  }
-
-  // Get the adjusted stock level for a product
-  const getAdjustedStock = (product: Product) => {
-    const adjustment = adjustments[product.id] || 0
-    return product.stockLevel + adjustment
-  }
-
-  // Check if a product has any adjustments
-  const hasAdjustment = (productId: string) => {
-    return adjustments[productId] !== undefined && adjustments[productId] !== 0
-  }
-
-  // Save adjustments
-  const saveAdjustments = () => {
-    setIsSaving(true)
-
-    // Simulate API call
-    setTimeout(() => {
-      // Update product stock levels
-      const updatedProducts = products.map((product) => {
-        const adjustment = adjustments[product.id] || 0
-        if (adjustment !== 0) {
-          return {
-            ...product,
-            stockLevel: product.stockLevel + adjustment,
-          }
-        }
-        return product
-      })
-
-      setProducts(updatedProducts)
-      setAdjustments({})
-      setIsSaving(false)
-      setIsSaved(true)
-
-      // Reset saved status after 3 seconds
-      setTimeout(() => {
-        setIsSaved(false)
-      }, 3000)
-    }, 1000)
-  }
-
-  // Check if there are any adjustments to save
-  const hasAdjustments = Object.values(adjustments).some((adj) => adj !== 0)
+  // Graph Data for Line Chart (Stock Adjustment History)
+  const stockHistoryData: StockHistoryData[] = products.map((product) => ({
+    date: product.name, // Placeholder for date, you can change it to actual dates from your data if needed
+    adjustment: product.stockLevel, // Placeholder for adjustment, you can adjust it based on history data
+  }))
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Manual Adjustment</h1>
-        <p className="text-muted-foreground">Adjust inventory levels manually for stock reconciliation</p>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">Overview of inventory and adjustments</p>
       </div>
 
-      {isSaved && (
-        <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-900">
-          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <AlertTitle>Stock levels updated</AlertTitle>
-          <AlertDescription>Your inventory adjustments have been saved successfully.</AlertDescription>
-        </Alert>
-      )}
+      {/* Stock Levels by Category (Pie Chart) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Stock Levels by Category</CardTitle>
+          <CardDescription>Visual representation of stock levels per category</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={categoryData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                label
+              >
+                {categoryData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.value > 50 ? "#82ca9d" : "#ff8042"} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
+
+      {/* Manual Adjustment Table */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -116,8 +138,11 @@ export default function ManualAdjustmentPage() {
               />
             </div>
           </div>
-          <CardDescription>Increase or decrease stock levels for inventory reconciliation</CardDescription>
+          <CardDescription>
+            Increase or decrease stock levels for inventory reconciliation
+          </CardDescription>
         </CardHeader>
+
         <CardContent>
           <Table>
             <TableHeader>
@@ -133,12 +158,12 @@ export default function ManualAdjustmentPage() {
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => {
-                const adjustment = adjustments[product.id] || 0
-                const newStock = getAdjustedStock(product)
+                const adjustment = 0 // Here you can calculate any adjustments
+                const newStock = product.stockLevel + adjustment
                 const isLowStock = newStock <= product.reorderPoint
 
                 return (
-                  <TableRow key={product.id} className={hasAdjustment(product.id) ? "bg-muted/50" : ""}>
+                  <TableRow key={product._id}>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>{product.sku}</TableCell>
                     <TableCell>
@@ -148,7 +173,11 @@ export default function ManualAdjustmentPage() {
                     <TableCell className="text-center">
                       {adjustment !== 0 && (
                         <Badge variant={adjustment > 0 ? "default" : "destructive"} className="gap-1">
-                          {adjustment > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                          {adjustment > 0 ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3" />
+                          )}
                           {Math.abs(adjustment)}
                         </Badge>
                       )}
@@ -161,10 +190,10 @@ export default function ManualAdjustmentPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" size="icon" onClick={() => handleAdjustment(product.id, -1)}>
+                        <Button variant="outline" size="icon">
                           <MinusCircle className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleAdjustment(product.id, 1)}>
+                        <Button variant="outline" size="icon">
                           <PlusCircle className="h-4 w-4" />
                         </Button>
                       </div>
@@ -175,24 +204,6 @@ export default function ManualAdjustmentPage() {
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <p className="text-sm text-muted-foreground">
-            {Object.keys(adjustments).length} products with pending adjustments
-          </p>
-          <Button onClick={saveAdjustments} disabled={!hasAdjustments || isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Adjustments
-              </>
-            )}
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   )
